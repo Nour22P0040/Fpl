@@ -1,38 +1,63 @@
-import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import 'dart:convert';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const Color fplPurple = Color(0xFF38003C);
 const Color fplGreen = Color(0xFF00FF85);
 
-/// Builds the ordered list of image URLs to try for a player.
-/// 1) `photo_url` from your JSON (if you add it)  -> best, you control it server-side
-/// 2) URLs built from the FPL `code` (NOT the `id`) -> the photo files are named by code
-/// 3) generated initials avatar                    -> last resort, always works
+
+String _proxied(String url) =>
+    'https://wsrv.nl/?url=${Uri.encodeComponent(url)}&w=220&h=220&fit=cover&a=top&output=png';
+
+
 List<String> playerPhotoUrls(Map player, String webName) {
-  final urls = <String>[];
+  final direct = <String>[];
 
-  final direct = player['photo_url'];
-  if (direct is String && direct.isNotEmpty) urls.add(direct);
+  // 1. URL / filename from your JSON
+  final dynamic raw = player['photo_url'] ?? player['image'] ?? player['photo'];
+  final String? jsonImage = raw?.toString();
 
+  if (jsonImage != null && jsonImage.isNotEmpty) {
+    if (jsonImage.startsWith('http')) {
+      direct.add(jsonImage);
+    } else {
+      final cleanCode = jsonImage.replaceAll('.jpg', '').replaceAll('.png', '');
+      direct.addAll([
+        'https://resources.premierleague.com/premierleague25/photos/players/110x140/$cleanCode.png',
+        'https://resources.premierleague.com/premierleague/photos/players/110x140/p$cleanCode.png',
+      ]);
+    }
+  }
+
+  // 2. Fallback to player 'code'
   final code = player['code'];
   if (code != null) {
-    urls.addAll([
+    direct.addAll([
       'https://resources.premierleague.com/premierleague25/photos/players/110x140/$code.png',
-      'https://resources.premierleague.com/premierleague26/photos/players/110x140/$code.png',
       'https://resources.premierleague.com/premierleague/photos/players/110x140/p$code.png',
     ]);
   }
 
-  urls.add(
+  // Remove duplicates, keep order
+  final unique = direct.toSet().toList();
+
+  final urls = <String>[
+    // Proxied versions first (work on web + mobile)
+    ...unique.map(_proxied),
+    // Then the direct ones
+    ...unique,
+    // Final failsafe: initials avatar
     'https://ui-avatars.com/api/?name=${Uri.encodeComponent(webName)}'
         '&background=38003C&color=00FF85&bold=true&size=128',
-  );
+  ];
+
   return urls;
 }
 
-/// Shows the first URL that loads successfully, moving down the list on errors.
+
 class PlayerAvatar extends StatefulWidget {
   final List<String> urls;
   final double size;
@@ -49,12 +74,17 @@ class _PlayerAvatarState extends State<PlayerAvatar> {
   @override
   void didUpdateWidget(covariant PlayerAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.urls.join() != widget.urls.join()) _index = 0;
+    if (oldWidget.urls.join() != widget.urls.join()) {
+      _index = 0;
+    }
   }
 
-  void _tryNext() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _index++);
+  void _tryNext(int failedIndex) {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      // Only advance if this is still the URL that failed
+      if (mounted && _index == failedIndex) {
+        setState(() => _index++);
+      }
     });
   }
 
@@ -66,13 +96,23 @@ class _PlayerAvatarState extends State<PlayerAvatar> {
     if (_index >= widget.urls.length) {
       child = const Icon(Icons.person, color: Colors.white);
     } else {
+      final currentIndex = _index;
       child = Image.network(
-        widget.urls[_index],
-        key: ValueKey(widget.urls[_index]),
+        widget.urls[currentIndex],
+        key: ValueKey(widget.urls[currentIndex]),
         width: size,
         height: size,
         fit: BoxFit.cover,
-        alignment: Alignment.topCenter, // keeps the face in frame for 110x140 photos
+        alignment: Alignment.topCenter,
+        // Custom headers only on mobile/desktop (on web they trigger CORS preflight)
+        headers: kIsWeb
+            ? null
+            : const {
+          'User-Agent':
+          'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 '
+              '(KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36',
+          'Accept': 'image/png,image/*;q=0.8',
+        },
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
           return const Center(
@@ -84,7 +124,8 @@ class _PlayerAvatarState extends State<PlayerAvatar> {
           );
         },
         errorBuilder: (context, error, stackTrace) {
-          _tryNext();
+          debugPrint('IMG FAIL [${widget.urls[currentIndex]}] -> $error');
+          _tryNext(currentIndex);
           return const SizedBox.shrink();
         },
       );
@@ -124,7 +165,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
       final dio = Dio();
 
       const url =
-          'https://raw.githubusercontent.com/gauravshrestha1/fplextract/main/fpl-data/players.json';
+          'https://raw.githubusercontent.com/Nour22P0040/Fpl/main/players.json';
       final response = await dio.get(url);
 
       dynamic responseData = response.data;
@@ -134,7 +175,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
       }
 
       if (responseData is Map) {
-        return responseData['players'] ?? [];
+        return responseData['players'] ?? responseData['elements'] ?? [];
       }
 
       if (responseData is List) {
@@ -149,7 +190,8 @@ class _PlayersScreenState extends State<PlayersScreen> {
 
   Future<void> _launchWikipedia(String playerName) async {
     final url = Uri.parse(
-        'https://en.wikipedia.org/wiki/Special:Search?search=${Uri.encodeComponent(playerName)}');
+      'https://en.wikipedia.org/wiki/Special:Search?search=${Uri.encodeComponent(playerName)}',
+    );
 
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (mounted) {
@@ -211,17 +253,30 @@ class _PlayersScreenState extends State<PlayersScreen> {
               final player = playersList[index] as Map;
 
               final String webName = player['web_name'] ?? 'Unknown';
-              final String fullName = player['full_name'] ?? webName;
-              final String team = player['team'] ?? 'Unknown Team';
-              final String position = player['pos'] ?? '';
-              final String price = player['price']?.toString() ?? '0.0';
+              final String fullName =
+              '${player['first_name'] ?? ''} ${player['second_name'] ?? ''}'
+                  .trim();
+              final String displayName =
+              fullName.isNotEmpty ? fullName : (player['full_name'] ?? webName);
+              final String team = player['team']?.toString() ?? 'Unknown Team';
+              final String position =
+                  player['pos'] ?? player['element_type']?.toString() ?? '';
+              final String price = player['price']?.toString() ??
+                  (player['now_cost'] != null
+                      ? (player['now_cost'] / 10).toStringAsFixed(1)
+                      : '0.0');
 
               return Card(
                 elevation: 2,
                 margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   leading: PlayerAvatar(urls: playerPhotoUrls(player, webName)),
                   title: Text(
                     webName,
@@ -241,7 +296,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                   trailing: IconButton(
                     icon: const Icon(Icons.language, color: fplPurple),
                     tooltip: 'View on Wikipedia',
-                    onPressed: () => _launchWikipedia(fullName),
+                    onPressed: () => _launchWikipedia(displayName),
                   ),
                   onTap: () {
                     ScaffoldMessenger.of(context).showSnackBar(

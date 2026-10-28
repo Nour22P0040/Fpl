@@ -12,7 +12,7 @@ const Color fplGreen = Color(0xFF00FF85);
 String _proxied(String url) =>
     'https://wsrv.nl/?url=${Uri.encodeComponent(url)}&w=220&h=220&fit=cover&a=top&output=png';
 
-
+/// Builds the list of image URLs to try, in order.
 List<String> playerPhotoUrls(Map player, String webName) {
   final direct = <String>[];
 
@@ -57,7 +57,7 @@ List<String> playerPhotoUrls(Map player, String webName) {
   return urls;
 }
 
-
+/// Displays the first valid image URL, cascading down on errors.
 class PlayerAvatar extends StatefulWidget {
   final List<String> urls;
   final double size;
@@ -91,6 +91,7 @@ class _PlayerAvatarState extends State<PlayerAvatar> {
   @override
   Widget build(BuildContext context) {
     final size = widget.size;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Widget child;
     if (_index >= widget.urls.length) {
@@ -135,7 +136,7 @@ class _PlayerAvatarState extends State<PlayerAvatar> {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: Colors.grey[300],
+        color: Colors.grey[isDark ? 800 : 300],
         shape: BoxShape.circle,
         border: Border.all(color: fplGreen, width: 2),
       ),
@@ -204,8 +205,14 @@ class _PlayersScreenState extends State<PlayersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : fplPurple;
+    final subtitleColor = isDark ? Colors.grey[400] : Colors.grey[700];
+    final iconColor = isDark ? fplGreen : fplPurple;
+    final spinnerColor = isDark ? fplGreen : fplPurple;
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey[100],
       appBar: AppBar(
         title: const Text('FPL Players'),
         backgroundColor: fplPurple,
@@ -215,8 +222,8 @@ class _PlayersScreenState extends State<PlayersScreen> {
         future: _playersFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: fplPurple),
+            return Center(
+              child: CircularProgressIndicator(color: spinnerColor),
             );
           } else if (snapshot.hasError) {
             return Center(
@@ -230,7 +237,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                       const SizedBox(height: 16),
                       Text(
                         'Error: ${snapshot.error}',
-                        style: const TextStyle(color: Colors.black87),
+                        style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -280,21 +287,21 @@ class _PlayersScreenState extends State<PlayersScreen> {
                   leading: PlayerAvatar(urls: playerPhotoUrls(player, webName)),
                   title: Text(
                     webName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: fplPurple,
+                      color: titleColor,
                     ),
                   ),
                   subtitle: Text(
                     '$team | Pos: $position | £${price}m',
                     style: TextStyle(
-                      color: Colors.grey[700],
+                      color: subtitleColor,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   trailing: IconButton(
-                    icon: const Icon(Icons.language, color: fplPurple),
+                    icon: Icon(Icons.language, color: iconColor),
                     tooltip: 'View on Wikipedia',
                     onPressed: () => _launchWikipedia(displayName),
                   ),
@@ -303,7 +310,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                       SnackBar(
                         content: Text('Added $webName to your squad!'),
                         duration: const Duration(seconds: 1),
-                        backgroundColor: fplPurple,
+                        backgroundColor: subtitleColor,
                       ),
                     );
                   },

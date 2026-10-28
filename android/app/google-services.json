@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "834867957166",
+    "project_id": "fpl-app-1340a",
+    "storage_bucket": "fpl-app-1340a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:834867957166:android:daf6056605e215754f4c3f",
+        "android_client_info": {
+          "package_name": "com.example.fplhub_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxKHrooIGdWPnqQyzqbMtRWhumMopyIr8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

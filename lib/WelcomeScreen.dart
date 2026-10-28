@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 const Color fplPurple = Color(0xFF37003C);
 const Color fplGreen = Color(0xFF00FF85);
 
-// Changed from StartScreen to WelcomeScreen
 class WelcomeScreen extends StatelessWidget {
   final String name;
   final String teamName;
@@ -21,6 +20,21 @@ class WelcomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: fplPurple,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/'); // must match your sign up route path
+            }
+          },
+        ),
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -46,7 +60,8 @@ class WelcomeScreen extends StatelessWidget {
               const SizedBox(height: 8),
 
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),

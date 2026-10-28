@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
-const Color fplPurple = Color(0xFF37003C);
-const Color fplGreen = Color(0xFF00FF85);
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'colors.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -18,19 +18,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _teamController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmController = TextEditingController();
 
-  void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      // Pass the name and team through GoRouter state extra
-      context.go(
-        '/welcome',
-        extra: {
-          'name': _nameController.text.trim(),
-          'team': _teamController.text.trim(),
-        },
-      );
-    }
-  }
+  bool _obscure = true;
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -38,14 +30,75 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _teamController.dispose();
+    _passwordController.dispose();
+    _confirmController.dispose();
     super.dispose();
   }
 
-  InputDecoration _inputDecoration(String label, IconData icon) {
+  Future<void> _submitForm() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _loading = true);
+    try {
+      final name = _nameController.text.trim();
+      final team = _teamController.text.trim();
+
+      // 1. Create the account in Firebase Auth
+      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      // 2. Save the profile in Firestore at users/{uid}
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(cred.user!.uid)
+          .set({
+        'name': name,
+        'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'team': team,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+      context.go(
+        '/welcome',
+        extra: <String, String>{'name': name, 'team': team},
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      String msg;
+      switch (e.code) {
+        case 'email-already-in-use':
+          msg = 'This email is already registered. Try signing in.';
+          break;
+        case 'weak-password':
+          msg = 'Password is too weak (minimum 6 characters).';
+          break;
+        case 'invalid-email':
+          msg = 'The email address is not valid.';
+          break;
+        default:
+          msg = e.message ?? 'Sign up failed';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Something went wrong: $e')));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  InputDecoration _inputDecoration(String label, IconData icon,
+      {Widget? suffix}) {
     return InputDecoration(
       labelText: label,
       labelStyle: const TextStyle(color: Colors.white70),
       prefixIcon: Icon(icon, color: fplGreen),
+      suffixIcon: suffix,
       filled: true,
       fillColor: Colors.white.withValues(alpha: 0.08),
       enabledBorder: OutlineInputBorder(
@@ -85,10 +138,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const CircleAvatar(
-                  radius: 36,
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person_add, size: 40, color: fplPurple),
+                const Center(
+                  child: CircleAvatar(
+                    radius: 36,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.person_add, size: 40, color: fplPurple),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 const Text(
@@ -108,7 +163,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Name Field
+                // Name
                 TextFormField(
                   controller: _nameController,
                   style: const TextStyle(color: Colors.white),
@@ -118,7 +173,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Email Field
+                // Email
                 TextFormField(
                   controller: _emailController,
                   style: const TextStyle(color: Colors.white),
@@ -129,7 +184,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Phone Field
+                // Phone
                 TextFormField(
                   controller: _phoneController,
                   style: const TextStyle(color: Colors.white),
@@ -140,19 +195,59 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Team Field
+                // Team
                 TextFormField(
                   controller: _teamController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('FPL Team Name', Icons.sports_soccer),
+                  decoration:
+                  _inputDecoration('FPL Team Name', Icons.sports_soccer),
                   validator: TeamValidator.validate,
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 16),
+
+                // Password
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _obscure,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _inputDecoration(
+                    'Password',
+                    Icons.lock,
+                    suffix: IconButton(
+                      icon: Icon(
+                        _obscure ? Icons.visibility_off : Icons.visibility,
+                        color: Colors.white70,
+                      ),
+                      onPressed: () => setState(() => _obscure = !_obscure),
+                    ),
+                  ),
+                  validator: PasswordValidator.validate,
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 16),
+
+                // Confirm password
+                TextFormField(
+                  controller: _confirmController,
+                  obscureText: _obscure,
+                  style: const TextStyle(color: Colors.white),
+                  decoration:
+                  _inputDecoration('Confirm Password', Icons.lock_outline),
+                  validator: (value) {
+                    if (value != _passwordController.text) {
+                      return 'Passwords do not match';
+                    }
+                    return null;
+                  },
                   textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _submitForm(),
                 ),
                 const SizedBox(height: 32),
 
-                // Submit Button
+                // Submit
                 ElevatedButton(
-                  onPressed: _submitForm,
+                  onPressed: _loading ? null : _submitForm,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: fplGreen,
                     foregroundColor: fplPurple,
@@ -161,7 +256,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
+                  child: _loading
+                      ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  )
+                      : const Text(
                     'Sign Up',
                     style: TextStyle(
                       fontSize: 18,
@@ -226,6 +327,18 @@ class TeamValidator {
     }
     if (value.trim().length < 3) {
       return 'Team name must be at least 3 characters';
+    }
+    return null;
+  }
+}
+
+class PasswordValidator {
+  static String? validate(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Password cannot be empty';
+    }
+    if (value.length < 6) {
+      return 'Password must be at least 6 characters';
     }
     return null;
   }

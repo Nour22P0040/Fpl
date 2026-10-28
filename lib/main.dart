@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'SigninScreen.dart';
 import 'SignupScreen.dart';
 import 'WelcomeScreen.dart';
 import 'players_screen.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const FplApp());
 }
 
@@ -31,19 +38,22 @@ class _FplAppState extends State<FplApp> {
   late final GoRouter _router = GoRouter(
     initialLocation: '/',
     routes: [
+      // Start screen is Sign In
       GoRoute(
         path: '/',
+        builder: (context, state) => const SignInScreen(),
+      ),
+      GoRoute(
+        path: '/signup',
         builder: (context, state) => const SignUpScreen(),
       ),
       GoRoute(
         path: '/welcome',
         builder: (context, state) {
-          // 1. Extract the passed map values from SignupScreen
           final data = state.extra as Map<String, String>?;
           final managerName = data?['name'] ?? 'Manager';
           final team = data?['team'] ?? 'My Team';
 
-          // 2. Pass them into the WelcomeScreen
           return WelcomeScreen(
             name: managerName,
             teamName: team,

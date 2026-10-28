@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'colors.dart';
+import 'AppBackground.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -124,153 +125,168 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: fplPurple,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Create Account'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         foregroundColor: Colors.white,
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Center(
-                  child: CircleAvatar(
-                    radius: 36,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.person_add, size: 40, color: fplPurple),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Join the League',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Register your manager profile',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 15, color: fplGreen),
-                ),
-                const SizedBox(height: 32),
-
-                // Name
-                TextFormField(
-                  controller: _nameController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('Full Name', Icons.person),
-                  validator: NameValidator.validate,
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 16),
-
-                // Email
-                TextFormField(
-                  controller: _emailController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('Email Address', Icons.email),
-                  keyboardType: TextInputType.emailAddress,
-                  validator: EmailValidator.validate,
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 16),
-
-                // Phone
-                TextFormField(
-                  controller: _phoneController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('Phone Number', Icons.phone),
-                  keyboardType: TextInputType.phone,
-                  validator: PhoneValidator.validate,
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 16),
-
-                // Team
-                TextFormField(
-                  controller: _teamController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration:
-                  _inputDecoration('FPL Team Name', Icons.sports_soccer),
-                  validator: TeamValidator.validate,
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 16),
-
-                // Password
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscure,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration(
-                    'Password',
-                    Icons.lock,
-                    suffix: IconButton(
-                      icon: Icon(
-                        _obscure ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.white70,
+      body: AppBackground(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding:
+            const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Logo
+                  Center(
+                    child: Container(
+                      width: 90,
+                      height: 90,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: fplGreen, width: 3),
                       ),
-                      onPressed: () => setState(() => _obscure = !_obscure),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/pl_logo.png',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
                   ),
-                  validator: PasswordValidator.validate,
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 16),
-
-                // Confirm password
-                TextFormField(
-                  controller: _confirmController,
-                  obscureText: _obscure,
-                  style: const TextStyle(color: Colors.white),
-                  decoration:
-                  _inputDecoration('Confirm Password', Icons.lock_outline),
-                  validator: (value) {
-                    if (value != _passwordController.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _submitForm(),
-                ),
-                const SizedBox(height: 32),
-
-                // Submit
-                ElevatedButton(
-                  onPressed: _loading ? null : _submitForm,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: fplGreen,
-                    foregroundColor: fplPurple,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _loading
-                      ? const SizedBox(
-                    height: 22,
-                    width: 22,
-                    child: CircularProgressIndicator(strokeWidth: 3),
-                  )
-                      : const Text(
-                    'Sign Up',
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Join the League',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Register your manager profile',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 15, color: fplGreen),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Name
+                  TextFormField(
+                    controller: _nameController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _inputDecoration('Full Name', Icons.person),
+                    validator: NameValidator.validate,
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Email
+                  TextFormField(
+                    controller: _emailController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _inputDecoration('Email Address', Icons.email),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: EmailValidator.validate,
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Phone
+                  TextFormField(
+                    controller: _phoneController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _inputDecoration('Phone Number', Icons.phone),
+                    keyboardType: TextInputType.phone,
+                    validator: PhoneValidator.validate,
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Team
+                  TextFormField(
+                    controller: _teamController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration:
+                    _inputDecoration('FPL Team Name', Icons.sports_soccer),
+                    validator: TeamValidator.validate,
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Password
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscure,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _inputDecoration(
+                      'Password',
+                      Icons.lock,
+                      suffix: IconButton(
+                        icon: Icon(
+                          _obscure ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.white70,
+                        ),
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                      ),
+                    ),
+                    validator: PasswordValidator.validate,
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Confirm password
+                  TextFormField(
+                    controller: _confirmController,
+                    obscureText: _obscure,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: _inputDecoration(
+                        'Confirm Password', Icons.lock_outline),
+                    validator: (value) {
+                      if (value != _passwordController.text) {
+                        return 'Passwords do not match';
+                      }
+                      return null;
+                    },
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _submitForm(),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Submit
+                  ElevatedButton(
+                    onPressed: _loading ? null : _submitForm,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: fplGreen,
+                      foregroundColor: fplPurple,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _loading
+                        ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    )
+                        : const Text(
+                      'Sign Up',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

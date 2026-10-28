@@ -118,12 +118,21 @@ class _SignInScreenState extends State<SignInScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Center(
-                    child: CircleAvatar(
-                      radius: 44,
-                      backgroundColor: Colors.white,
-                      child:
-                      Icon(Icons.sports_soccer, size: 50, color: fplPurple),
+                  // Logo
+                  Center(
+                    child: Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: fplGreen, width: 3),
+                      ),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/pl_logo.png',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),

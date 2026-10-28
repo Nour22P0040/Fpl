@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
-const Color fplPurple = Color(0xFF37003C);
-const Color fplGreen = Color(0xFF00FF85);
+import 'colors.dart';
 
 class WelcomeScreen extends StatelessWidget {
   final String name;
@@ -30,7 +28,7 @@ class WelcomeScreen extends StatelessWidget {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/'); // must match your sign up route path
+              context.go('/'); // sign in route
             }
           },
         ),
@@ -41,10 +39,20 @@ class WelcomeScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.white,
-                child: Icon(Icons.sports_soccer, size: 56, color: fplPurple),
+              // Logo
+              Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: fplGreen, width: 3),
+                ),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/images/pl_logo.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
               const SizedBox(height: 24),
 

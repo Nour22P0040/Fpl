@@ -132,7 +132,7 @@ class _PlayerAvatarState extends State<PlayerAvatar> {
   }
 }
 
-/// Shows only the favorited players, passed in via the constructor.
+
 class BucketListScreen extends StatelessWidget {
   final List<Player> savedPlayers;
 

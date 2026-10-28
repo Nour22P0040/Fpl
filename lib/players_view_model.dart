@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'db_helper.dart';
@@ -9,6 +10,8 @@ import 'player.dart';
 class PlayersViewModel extends ChangeNotifier {
   final SharedPreferencesAsync _prefs = SharedPreferencesAsync();
   static const _favKey = 'favorite_players';
+  static const _url =
+      'https://raw.githubusercontent.com/Nour22P0040/Fpl/main/players.json';
 
   // State the screen reads
   List<Player> players = [];
@@ -31,10 +34,11 @@ class PlayersViewModel extends ChangeNotifier {
     super.dispose();
   }
 
-  /// Favorites -> cache -> network, in that order.
+  /// Favorites -> cache -> bundled asset -> network.
   Future<void> load() async {
     await loadFavorites();
     await loadCachedPlayers();
+    if (players.isEmpty) await loadBundledPlayers();
     await fetchPlayers();
   }
 
@@ -60,6 +64,21 @@ class PlayersViewModel extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Could not read cache: $e');
+    }
+  }
+
+  /// Last-resort offline data shipped with the app.
+  Future<void> loadBundledPlayers() async {
+    try {
+      final text = await rootBundle.loadString('assets/players.json');
+      final bundled = _parse(jsonDecode(text));
+      if (players.isEmpty && bundled.isNotEmpty) {
+        players = bundled;
+        isLoading = false;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Could not read bundled players: $e');
     }
   }
 
@@ -92,26 +111,28 @@ class PlayersViewModel extends ChangeNotifier {
     _prefs.setStringList(_favKey, favoriteNames.toList());
   }
 
+  List<Player> _parse(dynamic data) {
+    List raw = [];
+    if (data is Map) {
+      raw = data['players'] ?? data['elements'] ?? [];
+    } else if (data is List) {
+      raw = data;
+    }
+    return raw.whereType<Map>().map(Player.fromJson).toList();
+  }
+
   Future<List<Player>> _download() async {
     try {
-      final dio = Dio();
-      const url =
-          'https://raw.githubusercontent.com/Nour22P0040/Fpl/main/players.json';
-      final response = await dio.get(url);
+      final dio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 8),
+        receiveTimeout: const Duration(seconds: 8),
+      ));
+      final response = await dio.get(_url);
 
       dynamic data = response.data;
-      if (data is String) {
-        data = jsonDecode(data);
-      }
+      if (data is String) data = jsonDecode(data);
 
-      List raw = [];
-      if (data is Map) {
-        raw = data['players'] ?? data['elements'] ?? [];
-      } else if (data is List) {
-        raw = data;
-      }
-
-      return raw.whereType<Map>().map(Player.fromJson).toList();
+      return _parse(data);
     } catch (e) {
       throw Exception('Failed to load players: $e');
     }

@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'db_helper.dart';
 import 'player.dart';
 import 'players_view_model.dart';
 
@@ -133,76 +135,6 @@ class _PlayerAvatarState extends State<PlayerAvatar> {
 }
 
 
-class BucketListScreen extends StatelessWidget {
-  final List<Player> savedPlayers;
-
-  const BucketListScreen({super.key, required this.savedPlayers});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleColor = isDark ? Colors.white : fplPurple;
-    final subtitleColor = isDark ? Colors.grey[400] : Colors.grey[700];
-
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF121212) : Colors.grey[100],
-      appBar: AppBar(
-        title: const Text('My Bucket List'),
-        backgroundColor: fplPurple,
-        foregroundColor: Colors.white,
-      ),
-      body: savedPlayers.isEmpty
-          ? Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'No favorites yet.\nTap the heart on a player to save them.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: subtitleColor, fontSize: 16),
-          ),
-        ),
-      )
-          : ListView.builder(
-        itemCount: savedPlayers.length,
-        padding: const EdgeInsets.all(8.0),
-        itemBuilder: (context, index) {
-          final p = savedPlayers[index];
-          return Card(
-            elevation: 2,
-            margin:
-            const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 8,
-              ),
-              leading: PlayerAvatar(urls: playerPhotoUrls(p)),
-              title: Text(
-                p.webName,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: titleColor,
-                ),
-              ),
-              subtitle: Text(
-                '${p.team} | Pos: ${p.position} | £${p.price}m',
-                style: TextStyle(
-                  color: subtitleColor,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
 class PlayersScreen extends StatefulWidget {
   const PlayersScreen({super.key});
 
@@ -211,13 +143,43 @@ class PlayersScreen extends StatefulWidget {
 }
 
 class _PlayersScreenState extends State<PlayersScreen> {
-  // Created once; the screen only draws and forwards taps
   final PlayersViewModel viewModel = PlayersViewModel();
 
   @override
   void initState() {
     super.initState();
-    viewModel.load();
+    viewModel.loadFavorites();
+    _loadCachedPlayers(); // 1. show cached players right away
+    _fetchPlayers(); //       2. fetch live players (wins when it arrives)
+  }
+
+  /// Reads players saved in SQLite. Only used if nothing is on screen yet,
+  /// so a fast network result is never overwritten by older cached data.
+  Future<void> _loadCachedPlayers() async {
+    try {
+      final cached = await DBHelper.getCachedPlayers();
+      if (!mounted) return;
+      if (viewModel.players.isEmpty && cached.isNotEmpty) {
+        setState(() => viewModel.players = cached);
+      }
+    } catch (e) {
+      debugPrint('Could not read cache: $e');
+    }
+  }
+
+  /// Fetches live players, then refreshes the SQLite cache with them.
+  Future<void> _fetchPlayers() async {
+    final fresh = await viewModel.fetchPlayers();
+    if (fresh != null) {
+      try {
+        await DBHelper.cachePlayers(fresh);
+      } catch (e) {
+        debugPrint('Could not write cache: $e');
+      }
+    } else if (viewModel.players.isEmpty) {
+      // Offline and nothing cached yet: use the players bundled with the app
+      await viewModel.loadBundledPlayers();
+    }
   }
 
   @override
@@ -240,17 +202,10 @@ class _PlayersScreenState extends State<PlayersScreen> {
     }
   }
 
-  void _openBucketList() {
-    final saved = viewModel.players
-        .where((p) => viewModel.favoriteNames.contains(p.id))
-        .toList();
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => BucketListScreen(savedPlayers: saved),
-      ),
-    );
+  Future<void> _openFavorites() async {
+    await context.push('/favorites');
+    // Favorites may have been removed there; reload them from storage
+    await viewModel.loadFavorites();
   }
 
   @override
@@ -265,9 +220,19 @@ class _PlayersScreenState extends State<PlayersScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.bookmark),
+            icon: const Icon(Icons.star),
             tooltip: 'My Bucket List',
-            onPressed: _openBucketList,
+            onPressed: _openFavorites,
+          ),
+          IconButton(
+            icon: const Icon(Icons.groups),
+            tooltip: 'FPL Buddies',
+            onPressed: () => context.push('/buddies'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.person),
+            tooltip: 'My Profile',
+            onPressed: () => context.push('/profile'),
           ),
         ],
       ),
@@ -284,7 +249,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
     final iconColor = isDark ? fplGreen : fplPurple;
     final spinnerColor = isDark ? fplGreen : fplPurple;
 
-    // Decide by the data first: show whatever we have, live or cached
+
     if (viewModel.players.isEmpty) {
       if (viewModel.isLoading) {
         return Center(child: CircularProgressIndicator(color: spinnerColor));
@@ -316,17 +281,6 @@ class _PlayersScreenState extends State<PlayersScreen> {
 
     return Column(
       children: [
-        if (viewModel.error != null)
-          Container(
-            width: double.infinity,
-            color: Colors.orange.shade700,
-            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
-            child: const Text(
-              'Offline: showing saved players',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontSize: 13),
-            ),
-          ),
         Expanded(
           child: ListView.builder(
             itemCount: viewModel.players.length,

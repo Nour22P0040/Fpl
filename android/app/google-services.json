@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "834867957166",
+    "firebase_url": "https://fpl-app-1340a-default-rtdb.firebaseio.com",
     "project_id": "fpl-app-1340a",
     "storage_bucket": "fpl-app-1340a.firebasestorage.app"
   },

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'colors.dart';
+import 'services/presence_service.dart';
 import 'AppBackground.dart';
 
 class WelcomeScreen extends StatelessWidget {
@@ -30,10 +32,21 @@ class WelcomeScreen extends StatelessWidget {
             if (context.canPop()) {
               context.pop();
             } else {
-              context.go('/'); // sign in route
+              context.go('/'); // start screen
             }
           },
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: 'Sign out',
+            onPressed: () async {
+              await PresenceService.stop();
+              await FirebaseAuth.instance.signOut();
+              if (context.mounted) context.go('/');
+            },
+          ),
+        ],
       ),
       body: AppBackground(
         child: SafeArea(

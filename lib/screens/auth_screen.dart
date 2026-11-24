@@ -1,23 +1,77 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'colors.dart';
-import 'AppBackground.dart';
 
-class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key});
+import '../AppBackground.dart';
+import '../colors.dart';
+import '../profile_store.dart';
+import '../services/presence_service.dart';
+import '../validators.dart';
 
-  @override
-  State<SignInScreen> createState() => _SignInScreenState();
+/// Called after a successful sign in, and when the app opens with someone
+/// already signed in.
+/// Reads `users/<uid>` once: a returning manager (profile exists) goes to
+/// Welcome, a new account goes to Sign Up to fill in the profile.
+/// context.go replaces the stack (like Navigator.pushReplacement), so Back
+/// does not return to the sign-in form.
+Future<void> openAfterAuth(BuildContext context) async {
+  final uid = FirebaseAuth.instance.currentUser!.uid;
+
+  Map<String, String>? profile;
+  try {
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    if (doc.exists) {
+      final data = doc.data()!;
+      profile = {
+        'name': (data['name'] ?? 'Manager').toString(),
+        'team': (data['team'] ?? 'My Team').toString(),
+      };
+      await ProfileStore.save(uid, profile['name']!, profile['team']!);
+    }
+  } catch (e) {
+    // Offline: fall back to the copy saved on this device
+    debugPrint('Could not read profile from Firestore: $e');
+    profile = await ProfileStore.load(uid);
+  }
+
+  if (!context.mounted) return;
+  if (profile != null) {
+    PresenceService.start(); // returning manager is online
+    context.go('/welcome', extra: profile);
+  } else {
+    context.go('/signup');
+  }
 }
 
-class _SignInScreenState extends State<SignInScreen> {
+class AuthScreen extends StatefulWidget {
+  const AuthScreen({super.key});
+
+  @override
+  State<AuthScreen> createState() => _AuthScreenState();
+}
+
+class _AuthScreenState extends State<AuthScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  bool _busy = false;
   bool _obscurePassword = true;
-  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Already signed in on this phone: skip the form (works offline too)
+    if (FirebaseAuth.instance.currentUser != null) {
+      _busy = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await openAfterAuth(context);
+        if (mounted) setState(() => _busy = false);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -26,55 +80,45 @@ class _SignInScreenState extends State<SignInScreen> {
     super.dispose();
   }
 
-  Future<void> _signIn() async {
+  String _messageFor(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-credential':
+      case 'user-not-found':
+      case 'wrong-password':
+        return 'Incorrect email or password.';
+      case 'email-already-in-use':
+        return 'This email is already registered. Try signing in.';
+      case 'weak-password':
+        return 'Password is too weak (minimum 6 characters).';
+      case 'invalid-email':
+        return 'The email address is not valid.';
+      case 'network-request-failed':
+        return 'No internet connection. Please try again.';
+      case 'too-many-requests':
+        return 'Too many attempts. Try again later.';
+      default:
+        return e.message ?? 'Authentication failed';
+    }
+  }
+
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _loading = true);
+    setState(() => _busy = true);
     try {
-      final cred = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(cred.user!.uid)
-          .get();
-      final data = doc.data() ?? {};
-
       if (!mounted) return;
-      context.go(
-        '/welcome',
-        extra: <String, String>{
-          'name': (data['name'] ?? 'Manager') as String,
-          'team': (data['team'] ?? 'My Team') as String,
-        },
-      );
+      await openAfterAuth(context);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      String msg;
-      switch (e.code) {
-        case 'user-not-found':
-        case 'wrong-password':
-        case 'invalid-credential':
-          msg = 'Incorrect email or password.';
-          break;
-        case 'invalid-email':
-          msg = 'The email address is not valid.';
-          break;
-        case 'too-many-requests':
-          msg = 'Too many attempts. Try again later.';
-          break;
-        default:
-          msg = e.message ?? 'Sign in failed';
-      }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    } catch (e) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Something went wrong: $e')));
+          .showSnackBar(SnackBar(content: Text(_messageFor(e))));
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -120,7 +164,6 @@ class _SignInScreenState extends State<SignInScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Logo
                     Center(
                       child: Container(
                         width: 100,
@@ -162,12 +205,7 @@ class _SignInScreenState extends State<SignInScreen> {
                       decoration: _inputDecoration('Email', Icons.email),
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Email cannot be empty';
-                        }
-                        return null;
-                      },
+                      validator: Validators.validateEmail,
                     ),
                     const SizedBox(height: 16),
 
@@ -187,23 +225,18 @@ class _SignInScreenState extends State<SignInScreen> {
                             color: Colors.white70,
                           ),
                           onPressed: () => setState(
-                                  () => _obscurePassword = !_obscurePassword),
+                              () => _obscurePassword = !_obscurePassword),
                         ),
                       ),
                       textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _signIn(),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Password cannot be empty';
-                        }
-                        return null;
-                      },
+                      onFieldSubmitted: (_) => _busy ? null : _submit(),
+                      validator: Validators.validatePassword,
                     ),
                     const SizedBox(height: 28),
 
-                    // Sign in button
+                    // Submit
                     ElevatedButton(
-                      onPressed: _loading ? null : _signIn,
+                      onPressed: _busy ? null : _submit,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: fplGreen,
                         foregroundColor: fplPurple,
@@ -212,17 +245,17 @@ class _SignInScreenState extends State<SignInScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: _loading
+                      child: _busy
                           ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(strokeWidth: 3),
-                      )
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(strokeWidth: 3),
+                            )
                           : const Text(
-                        'Sign In',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
+                              'Sign In',
+                              style: TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
                     ),
                     const SizedBox(height: 16),
 
@@ -235,7 +268,8 @@ class _SignInScreenState extends State<SignInScreen> {
                           style: TextStyle(color: Colors.white70),
                         ),
                         TextButton(
-                          onPressed: () => context.push('/signup'),
+                          onPressed:
+                              _busy ? null : () => context.push('/signup'),
                           style: TextButton.styleFrom(
                             foregroundColor: fplGreen,
                             padding: const EdgeInsets.symmetric(horizontal: 6),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,7 +10,10 @@ import 'player.dart';
 
 class PlayersViewModel extends ChangeNotifier {
   final SharedPreferencesAsync _prefs = SharedPreferencesAsync();
-  static const _favKey = 'favorite_players';
+  /// Favorites are saved per account, so each user has their own list
+  /// and a new account starts empty.
+  String get _favKey =>
+      'favorite_players_${FirebaseAuth.instance.currentUser?.uid ?? 'guest'}';
   static const _url =
       'https://raw.githubusercontent.com/Nour22P0040/Fpl/main/players.json';
 
@@ -21,8 +25,7 @@ class PlayersViewModel extends ChangeNotifier {
 
   bool _disposed = false;
 
-  /// Async work can finish after the screen is gone; notifying a disposed
-  /// ChangeNotifier throws, so this guard keeps it safe.
+
   @override
   void notifyListeners() {
     if (!_disposed) super.notifyListeners();
@@ -34,13 +37,20 @@ class PlayersViewModel extends ChangeNotifier {
     super.dispose();
   }
 
-  /// Favorites -> cache -> bundled asset -> network.
-  Future<void> load() async {
+
+  /// Offline only: favorites + SQLite cache, falling back to the bundled asset.
+  /// Never touches the network, so it works with no connection.
+  Future<void> loadOffline() async {
     await loadFavorites();
     await loadCachedPlayers();
     if (players.isEmpty) await loadBundledPlayers();
-    await fetchPlayers();
+    isLoading = false;
+    notifyListeners();
   }
+
+  /// Players the user has marked as favorite.
+  List<Player> get favoritePlayers =>
+      players.where((p) => favoriteNames.contains(p.id)).toList();
 
   Future<void> loadFavorites() async {
     try {
@@ -54,7 +64,7 @@ class PlayersViewModel extends ChangeNotifier {
     }
   }
 
-  /// Shows cached players, but only if nothing fresher has arrived yet.
+
   Future<void> loadCachedPlayers() async {
     try {
       final cached = await DBHelper.getCachedPlayers();
@@ -67,7 +77,7 @@ class PlayersViewModel extends ChangeNotifier {
     }
   }
 
-  /// Last-resort offline data shipped with the app.
+
   Future<void> loadBundledPlayers() async {
     try {
       final text = await rootBundle.loadString('assets/players.json');
@@ -82,24 +92,21 @@ class PlayersViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> fetchPlayers() async {
+  /// Downloads live players. Returns the fresh list, or null if it failed
+  /// (players already on screen, live or cached, are kept).
+  Future<List<Player>?> fetchPlayers() async {
     try {
-      players = await _download();
+      final fresh = await _download();
+      players = fresh;
       error = null;
       isLoading = false;
       notifyListeners();
+      return fresh;
     } catch (e) {
       error = e.toString();
       isLoading = false;
       notifyListeners();
-      return;
-    }
-
-    // A storage problem must not look like a network error
-    try {
-      await DBHelper.cachePlayers(players);
-    } catch (e) {
-      debugPrint('Could not write cache: $e');
+      return null;
     }
   }
 

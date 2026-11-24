@@ -5,15 +5,7 @@ import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
-///
-/// Example:
-/// ```dart
-/// import 'firebase_options.dart';
-/// // ...
-/// await Firebase.initializeApp(
-///   options: DefaultFirebaseOptions.currentPlatform,
-/// );
-/// ```
+
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
@@ -46,6 +38,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '834867957166',
     projectId: 'fpl-app-1340a',
     authDomain: 'fpl-app-1340a.firebaseapp.com',
+    databaseURL: 'https://fpl-app-1340a-default-rtdb.firebaseio.com',
     storageBucket: 'fpl-app-1340a.firebasestorage.app',
   );
 
@@ -54,23 +47,24 @@ class DefaultFirebaseOptions {
     appId: '1:834867957166:android:daf6056605e215754f4c3f',
     messagingSenderId: '834867957166',
     projectId: 'fpl-app-1340a',
+    databaseURL: 'https://fpl-app-1340a-default-rtdb.firebaseio.com',
     storageBucket: 'fpl-app-1340a.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBPkbRkYIOl78Wgl4-VfiPLqt3CtiuyKqM',
     appId: '1:834867957166:ios:aa1fe789d584a7754f4c3f',
     messagingSenderId: '834867957166',
     projectId: 'fpl-app-1340a',
+    databaseURL: 'https://fpl-app-1340a-default-rtdb.firebaseio.com',
     storageBucket: 'fpl-app-1340a.firebasestorage.app',
     iosBundleId: 'com.example.fplhubApp',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyBPkbRkYIOl78Wgl4-VfiPLqt3CtiuyKqM',
     appId: '1:834867957166:ios:aa1fe789d584a7754f4c3f',
     messagingSenderId: '834867957166',
     projectId: 'fpl-app-1340a',
+    databaseURL: 'https://fpl-app-1340a-default-rtdb.firebaseio.com',
     storageBucket: 'fpl-app-1340a.firebasestorage.app',
     iosBundleId: 'com.example.fplhubApp',
   );
@@ -81,6 +75,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '834867957166',
     projectId: 'fpl-app-1340a',
     authDomain: 'fpl-app-1340a.firebaseapp.com',
+    databaseURL: 'https://fpl-app-1340a-default-rtdb.firebaseio.com',
     storageBucket: 'fpl-app-1340a.firebasestorage.app',
   );
 }

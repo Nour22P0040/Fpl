@@ -1,12 +1,19 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'calibration_store.dart';
 import 'db_helper.dart';
 import 'player.dart';
 import 'players_view_model.dart';
+import 'screens/profile_screen.dart';
+import 'stadiums_screen.dart';
 
 const Color fplPurple = Color(0xFF38003C);
 const Color fplGreen = Color(0xFF00FF85);
@@ -145,12 +152,100 @@ class PlayersScreen extends StatefulWidget {
 class _PlayersScreenState extends State<PlayersScreen> {
   final PlayersViewModel viewModel = PlayersViewModel();
 
+  // Shake to Surprise Me
+  StreamSubscription<AccelerometerEvent>? _shakeSub;
+  List<double> _offsets = [0, 0, 0];
+  static const double _shakeThreshold = 8.0;
+  DateTime _lastShake = DateTime.fromMillisecondsSinceEpoch(0);
+  bool _dialogOpen = false;
+  final Random _random = Random();
+
   @override
   void initState() {
     super.initState();
     viewModel.loadFavorites();
     _loadCachedPlayers(); // 1. show cached players right away
     _fetchPlayers(); //       2. fetch live players (wins when it arrives)
+
+    _loadOffsets();
+    _shakeSub = accelerometerEventStream().listen(
+      _onAccelerometer,
+      onError: (Object e) => debugPrint('Accelerometer unavailable: $e'),
+    );
+  }
+
+  Future<void> _loadOffsets() async {
+    final saved = await CalibrationStore.load();
+    if (!mounted) return;
+    _offsets = saved;
+  }
+
+  void _onAccelerometer(AccelerometerEvent e) {
+    final x = e.x - _offsets[0];
+    final y = e.y - _offsets[1];
+    final z = e.z - _offsets[2];
+    final force = sqrt(x * x + y * y + z * z);
+    if ((force - 9.81).abs() <= _shakeThreshold) return; // not a shake
+
+    final now = DateTime.now();
+    if (now.difference(_lastShake) < const Duration(seconds: 1)) return;
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+    if (_dialogOpen) return;
+    _lastShake = now;
+
+    _showSurprise();
+  }
+
+  /// Shows a random player; "Save to Bucket List" adds them to favorites.
+  Future<void> _showSurprise() async {
+    final players = viewModel.players;
+    if (players.isEmpty) return;
+    final p = players[_random.nextInt(players.length)];
+
+    _dialogOpen = true;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Surprise!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PlayerAvatar(urls: playerPhotoUrls(p), size: 96),
+            const SizedBox(height: 12),
+            Text(
+              p.webName,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            Text('${p.team} | Pos: ${p.position} | £${p.price}m'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Shake again'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (!viewModel.favoriteNames.contains(p.id)) {
+                viewModel.toggleFavorite(p.id);
+              }
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('Save to Bucket List'),
+          ),
+        ],
+      ),
+    );
+    _dialogOpen = false;
+  }
+
+  Future<void> _openProfile() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+    );
+    // The user may have recalibrated in the Sensor Lab
+    await _loadOffsets();
   }
 
   /// Reads players saved in SQLite. Only used if nothing is on screen yet,
@@ -184,6 +279,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
 
   @override
   void dispose() {
+    _shakeSub?.cancel();
     viewModel.dispose();
     super.dispose();
   }
@@ -230,9 +326,17 @@ class _PlayersScreenState extends State<PlayersScreen> {
             onPressed: () => context.push('/buddies'),
           ),
           IconButton(
+            icon: const Icon(Icons.stadium),
+            tooltip: 'Stadiums Near You',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const StadiumsScreen()),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.person),
             tooltip: 'My Profile',
-            onPressed: () => context.push('/profile'),
+            onPressed: _openProfile,
           ),
         ],
       ),

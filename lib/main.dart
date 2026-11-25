@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
-import 'screens/auth_screen.dart';
-import 'SignupScreen.dart';
+import 'screens/signin_screen.dart';
+import 'screens/signup_screen.dart';
 import 'WelcomeScreen.dart';
 import 'players_screen.dart';
 import 'favorite_screen.dart';
@@ -84,7 +84,7 @@ class _FplAppState extends State<FplApp> with WidgetsBindingObserver {
       // App opens on Sign In; its "Sign up" link opens /signup
       GoRoute(
         path: '/',
-        builder: (context, state) => const AuthScreen(),
+        builder: (context, state) => const SignInScreen(),
       ),
       GoRoute(
         path: '/signup',

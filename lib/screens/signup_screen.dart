@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'profile_store.dart';
-import 'services/presence_service.dart';
-import 'validators.dart';
-import 'colors.dart';
-import 'AppBackground.dart';
+import '../profile_store.dart';
+import '../services/presence_service.dart';
+import '../validators.dart';
+import '../colors.dart';
+import '../AppBackground.dart';
 
 /// Create account: one form for the account (email + password) and the
 /// manager profile. If the user already has an account but no profile yet

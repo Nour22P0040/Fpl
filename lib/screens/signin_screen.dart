@@ -45,14 +45,14 @@ Future<void> openAfterAuth(BuildContext context) async {
   }
 }
 
-class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+class SignInScreen extends StatefulWidget {
+  const SignInScreen({super.key});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  State<SignInScreen> createState() => _SignInScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _SignInScreenState extends State<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();

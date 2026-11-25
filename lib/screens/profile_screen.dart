@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../colors.dart';
+import '../sensor_lab_screen.dart';
 import '../services/presence_service.dart';
 
 /// Shows the signed-in manager's users/{uid} document, live:
@@ -63,6 +64,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: fplPurple,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.sensors),
+            tooltip: 'Sensor Lab',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SensorLabScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
